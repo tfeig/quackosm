@@ -32,27 +32,27 @@ pdm add -dG test <package>    # test dependency
 
 ```bash
 # Run all tests with tox (tests Python 3.9-3.13)
-tox
+pdm run tox
 
 # Run specific Python version
-tox -e python3.11
+pdm run tox -e python3.12
 
 # Run pytest directly
-pytest -v -s tests/base                    # Core tests
-pytest -v -s tests/optional_imports         # CLI dependency tests
-pytest -v -s tests/low_resources            # Memory-constrained tests
-pytest -v -s tests/benchmark                # Performance tests
+pdm run pytest -v -s tests/base                    # Core tests
+pdm run pytest -v -s tests/optional_imports         # CLI dependency tests
+pdm run pytest -v -s tests/low_resources            # Memory-constrained tests
+pdm run pytest -v -s tests/benchmark                # Performance tests
 
 # Run single test
-pytest -v -s tests/base/test_pbf_file_reader.py::test_name
+pdm run pytest -v -s tests/base/test_pbf_file_reader.py::test_name
 
 # Run doctests
-pytest -v -s --doctest-modules quackosm
+pdm run pytest -v -s --doctest-modules quackosm
 
 # Run with coverage
-coverage run --source=quackosm -m pytest tests/base
-coverage report -m
-coverage html  # Generate HTML report
+pdm run coverage run --source=quackosm -m pytest tests/base
+pdm run coverage report -m
+pdm run coverage html  # Generate HTML report
 ```
 
 ### Code Quality
@@ -74,7 +74,7 @@ ruff check quackosm --fix
 ruff format quackosm
 
 # Mypy (type checking - strict mode)
-mypy quackosm
+pdm run mypy quackosm
 
 # Docformatter
 docformatter --in-place --config pyproject.toml quackosm/**/*.py
