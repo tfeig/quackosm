@@ -1,5 +1,64 @@
 # Implementation Plan: Option 1 - Configuration Parameter for Non-Closed Relations
 
+## Quick Resume Guide (For New Sessions)
+
+**What's Done:** Core implementation complete - parameter added, validation logic updated, geometry construction handles both closed and non-closed relations.
+
+**What's Next:**
+1. **Stage 5 (Tests)**: Write comprehensive test suite or find suitable test data
+2. **Stage 6 (Docs)**: Update README.md and CHANGELOG.md
+
+**Key Files Modified:**
+- `quackosm/pbf_file_reader.py` (lines 176, 233-242, 270, 1283, 1326, 2497-2639, 2645-2790)
+
+**How to Continue:**
+1. Read the "Implementation Status" section below
+2. Jump to "Stage 5: Tests" section (line ~399) or "Stage 6: Documentation" section (line ~599)
+3. Check "Implementation Checklist" at bottom for detailed status
+
+**Testing Challenge:** Monaco PBF isn't suitable (route relations filtered). Options:
+- Create synthetic test data using OSM XML
+- Find PBF with multipolygon relations having irregular geometries
+- Proceed with documentation and defer integration tests
+
+---
+
+## Implementation Status (Last Updated: 2026-01-13)
+
+**Status:** Core implementation complete (Stages 1-3), tests and documentation pending
+
+**✅ Completed:**
+- Stage 1: Configuration parameter added to PbfFileReader
+- Stage 2: Validation logic modified (both all-at-once and chunked modes)
+- Stage 3: Non-closed geometry construction implemented
+- Stage 4: Chunked processing updated (completed as part of Stage 2)
+- Basic smoke test: Existing tests pass without modification
+
+**🔄 In Progress:**
+- None
+
+**⏳ Pending:**
+- Stage 5: Comprehensive test suite for non-closed relations
+- Stage 6: Documentation updates (README, CHANGELOG)
+
+**Important Notes:**
+- Monaco PBF was tested but has no suitable test data (route relations filtered out due to tag filtering)
+- Implementation appears correct but needs proper test coverage
+- All file locations updated in plan are accurate as of 2026-01-13
+- Backward compatibility maintained: default `include_non_closed_relations=False` matches original behavior
+- Cache invalidation working: files with `_nonclosedrelas` suffix are separate from default
+
+**Code Changes Summary:**
+1. **Parameter Addition**: Added `include_non_closed_relations: bool = False` to `__init__` signature (line 176) and stored as instance variable (line 270)
+2. **Validation Logic**: Modified `_save_valid_relation_parts()` to classify relations as `all_closed` rather than just filter (lines 2645-2666, 2751-2790)
+3. **Geometry Construction**:
+   - Inner/outer parts use CASE statement: `ST_MakePolygon` for closed, `ST_RemoveRepeatedPoints` for non-closed (lines 2497-2529)
+   - Hole processing only applies to closed relations (line 2546: added `WHERE og.all_closed = true`)
+   - Non-closed parts conditionally processed when enabled (lines 2585-2614)
+   - Final aggregation uses `ST_Union_Agg` to handle mixed geometry types (lines 2616-2639)
+4. **Cache Naming**: Added `_nonclosedrelas` suffix when parameter is True (lines 1283, 1326)
+5. **Cleanup**: Added `relation_non_closed_parts` to temp file cleanup list (line 1219)
+
 ## Overview
 
 Add `include_non_closed_relations: bool = False` parameter to `PbfFileReader` to optionally include OSM relations that don't form closed multipolygons. Default behavior preserves backward compatibility.
@@ -762,54 +821,82 @@ routes.plot(figsize=(10, 10))
 
 ## Implementation Checklist
 
-### Stage 1: Configuration Parameter
-- [ ] Add `include_non_closed_relations` parameter to `__init__`
-- [ ] Store as instance variable
-- [ ] Update docstring with parameter description
-- [ ] Add to cache file naming (`_nonclosedrelas` suffix)
-- [ ] Run existing tests (should all pass)
+### Stage 1: Configuration Parameter ✅ COMPLETED
+- [x] Add `include_non_closed_relations` parameter to `__init__` (line 176)
+- [x] Store as instance variable (line 270)
+- [x] Update docstring with parameter description (lines 233-242)
+- [x] Add to cache file naming (`_nonclosedrelas` suffix) (lines 1283, 1326)
+- [x] Run existing tests (should all pass) - PASSED
 
-### Stage 2: Validation Logic
-- [ ] Modify `_save_valid_relation_parts()` validation CTE
-- [ ] Add `all_closed` classification
-- [ ] Conditionally filter based on parameter
-- [ ] Pass classification to downstream operations
-- [ ] Test with synthetic non-closed relation
+**Implementation details:**
+- Added parameter after `ignore_metadata_tags` in signature
+- Cache file naming updated in both `_generate_result_file_path()` and `_generate_result_file_path_from_geometry()`
+- Docstring includes full explanation of output geometry types
 
-### Stage 3: Geometry Construction
-- [ ] Split inner/outer processing by closure status
-- [ ] Update hole processing (only for closed relations)
-- [ ] Modify final aggregation to handle mixed types
-- [ ] Test closed → MultiPolygon
-- [ ] Test non-closed → MultiLineString
-- [ ] Test mixed → GeometryCollection
+### Stage 2: Validation Logic ✅ COMPLETED
+- [x] Modify `_save_valid_relation_parts()` validation CTE (all-at-once mode: lines 2645-2666)
+- [x] Add `all_closed` classification
+- [x] Conditionally filter based on parameter
+- [x] Pass classification to downstream operations
+- [x] Update chunked processing mode (lines 2751-2790)
 
-### Stage 4: Chunked Processing
-- [ ] Apply same logic to chunked mode
-- [ ] Test chunked vs all-at-once equivalence
-- [ ] Verify memory-constrained scenarios
+**Implementation details:**
+- Replaced `valid_relations` CTE with two CTEs: `classified_relations` and `valid_relations`
+- Filter condition: `WHERE all_closed = true` (default) or `WHERE 1=1` (when enabled)
+- Added `all_closed` column to output for downstream use
+- Applied same changes to both all-at-once and chunked processing paths
 
-### Stage 5: Tests
-- [ ] Create test PBF with non-closed relations
+### Stage 3: Geometry Construction ✅ COMPLETED
+- [x] Split inner/outer processing by closure status (lines 2497-2529)
+- [x] Update hole processing (only for closed relations) (lines 2535-2561, added `WHERE og.all_closed = true`)
+- [x] Modify final aggregation to handle mixed types (lines 2585-2639)
+- [ ] Test closed → MultiPolygon (needs proper test data)
+- [ ] Test non-closed → MultiLineString (needs proper test data)
+- [ ] Test mixed → GeometryCollection (needs proper test data)
+
+**Implementation details:**
+- Inner parts: CASE statement to use `ST_MakePolygon` for closed, `ST_RemoveRepeatedPoints` for non-closed
+- Outer parts: Same CASE statement, plus added `all_closed` column to output
+- Hole subtraction: Added `WHERE og.all_closed = true` filter
+- Non-closed parts: Conditional processing only when `include_non_closed_relations=True`
+- Final aggregation: Uses `ST_Union_Agg` to handle mixed geometry types (creates GeometryCollection)
+- Added `relation_non_closed_parts` to temp file cleanup list (line 1219)
+
+### Stage 4: Chunked Processing ✅ COMPLETED (as part of Stage 2)
+- [x] Apply same logic to chunked mode (lines 2751-2790)
+- [ ] Test chunked vs all-at-once equivalence (needs test data)
+- [ ] Verify memory-constrained scenarios (needs test data)
+
+**Implementation details:**
+- Chunked mode validated in parallel with all-at-once mode during Stage 2
+- Same SQL logic applied to both paths
+
+### Stage 5: Tests ⏳ PENDING
+- [ ] Create test PBF with non-closed relations OR find real-world example
 - [ ] Write `test_non_closed_relations.py`
 - [ ] Add parametrization to existing tests
 - [ ] Add doctest examples
 - [ ] Run full test suite
 - [ ] Verify coverage >90%
 
-### Stage 6: Documentation
+**Testing notes:**
+- Monaco PBF has 290 relations but route relations are filtered by tag filtering (not suitable for testing)
+- Need either: (1) synthetic test data, or (2) PBF with multipolygon relations having irregular geometries
+- Consider using OSM XML to create test fixtures
+
+### Stage 6: Documentation ⏳ PENDING
 - [ ] Update README.md
 - [ ] Add CHANGELOG.md entry
-- [ ] Verify API documentation
+- [ ] Verify API documentation (docstring already complete)
 - [ ] Create example notebook (optional)
 - [ ] Review all documentation for clarity
 
-### Final Validation
-- [ ] All tests pass (Python 3.9-3.13)
-- [ ] No mypy errors
-- [ ] Pre-commit hooks pass
-- [ ] Manual testing with real PBF files
-- [ ] Performance benchmarks acceptable
+### Final Validation ⏳ PENDING
+- [x] All existing tests pass (Python 3.9-3.13) - smoke test passed
+- [ ] No mypy errors (need to run)
+- [ ] Pre-commit hooks pass (need to run)
+- [ ] Manual testing with real PBF files (need suitable test file)
+- [ ] Performance benchmarks acceptable (need to run)
 - [ ] Ready for PR
 
 ---

@@ -173,6 +173,7 @@ class PbfFileReader:
         geometry_coverage_iou_threshold: float = 0.01,
         allow_uncovered_geometry: bool = False,
         ignore_metadata_tags: bool = True,
+        include_non_closed_relations: bool = False,
         debug_memory: bool = False,
         debug_times: bool = False,
         cpu_limit: Optional[int] = None,
@@ -229,6 +230,16 @@ class PbfFileReader:
                 aren't covered by any OSM extract. Defaults to `False`.
             ignore_metadata_tags (bool, optional): Remove metadata tags, based on the default GDAL
                 config. Defaults to `True`.
+            include_non_closed_relations (bool, optional): If True, includes OSM relations that
+                don't form closed multipolygons in the output. When False (default), only relations
+                where all parts form closed rings are included.
+
+                Output geometry types:
+                - Closed relations → MultiPolygon (existing behavior)
+                - Non-closed relations → MultiLineString (when True)
+                - Mixed relations → GeometryCollection (when True)
+
+                Defaults to `False` (maintains backward compatibility).
             debug_memory (bool, optional): If turned on, will keep all temporary files after
                 operation for debugging. Defaults to `False`.
             debug_times (bool, optional): If turned on, will report timestamps at which second each
@@ -256,6 +267,7 @@ class PbfFileReader:
         self.geometry_coverage_iou_threshold = geometry_coverage_iou_threshold
         self.allow_uncovered_geometry = allow_uncovered_geometry
         self.ignore_metadata_tags = ignore_metadata_tags
+        self.include_non_closed_relations = include_non_closed_relations
         self.osm_extract_source = osm_extract_source
         self.working_directory = Path(working_directory)
         self.working_directory.mkdir(parents=True, exist_ok=True)
@@ -1204,6 +1216,7 @@ class PbfFileReader:
                 "relation_outer_parts",
                 "relation_outer_parts_with_holes",
                 "relation_outer_parts_without_holes",
+                "relation_non_closed_parts",
             ],
         )
 
@@ -1268,10 +1281,12 @@ class PbfFileReader:
 
         sort_result_part = "_sorted" if sort_result else ""
         wkt_result_part = "_wkt" if save_as_wkt else ""
+        non_closed_relations_part = "_nonclosedrelas" if self.include_non_closed_relations else ""
 
         result_file_name = (
             f"{pbf_file_name}_{osm_filter_tags_hash_part}_{clipping_geometry_hash_part}"
-            f"_{exploded_tags_part}{filter_osm_ids_hash_part}{sort_result_part}{wkt_result_part}.parquet"
+            f"_{exploded_tags_part}{filter_osm_ids_hash_part}{non_closed_relations_part}"
+            f"{sort_result_part}{wkt_result_part}.parquet"
         )
 
         return Path(self.working_directory) / result_file_name
@@ -1309,10 +1324,12 @@ class PbfFileReader:
 
         sort_result_part = "_sorted" if sort_result else ""
         wkt_result_part = "_wkt" if save_as_wkt else ""
+        non_closed_relations_part = "_nonclosedrelas" if self.include_non_closed_relations else ""
 
         result_file_name = (
             f"{clipping_geometry_hash_part}_{osm_filter_tags_hash_part}"
-            f"_{exploded_tags_part}{filter_osm_ids_hash_part}{sort_result_part}{wkt_result_part}.parquet"
+            f"_{exploded_tags_part}{filter_osm_ids_hash_part}{non_closed_relations_part}"
+            f"{sort_result_part}{wkt_result_part}.parquet"
         )
 
         return Path(self.working_directory) / result_file_name
@@ -2480,7 +2497,13 @@ class PbfFileReader:
 
         relation_inner_parts = self.connection.sql(
             f"""
-            SELECT id, geometry_id, ST_MakePolygon(ST_RemoveRepeatedPoints(geometry)) geometry
+            SELECT
+                id,
+                geometry_id,
+                CASE
+                    WHEN all_closed THEN ST_MakePolygon(ST_RemoveRepeatedPoints(geometry))
+                    ELSE ST_RemoveRepeatedPoints(geometry)::GEOMETRY
+                END geometry
             FROM ({valid_relation_parts_parquet.sql_query()})
             WHERE ref_role = 'inner'
             """
@@ -2493,7 +2516,14 @@ class PbfFileReader:
         any_relation_inner_parts = relation_inner_parts_parquet.count("id").fetchone()[0] != 0
         relation_outer_parts = self.connection.sql(
             f"""
-            SELECT id, geometry_id, ST_MakePolygon(ST_RemoveRepeatedPoints(geometry)) geometry
+            SELECT
+                id,
+                geometry_id,
+                CASE
+                    WHEN all_closed THEN ST_MakePolygon(ST_RemoveRepeatedPoints(geometry))
+                    ELSE ST_RemoveRepeatedPoints(geometry)::GEOMETRY
+                END geometry,
+                all_closed
             FROM ({valid_relation_parts_parquet.sql_query()})
             WHERE ref_role = 'outer'
             """
@@ -2504,6 +2534,7 @@ class PbfFileReader:
             step_name="Saving relations outer parts",
         )
         if any_relation_inner_parts:
+            # Hole subtraction only applies to closed relations (Polygons)
             relation_outer_parts_with_holes = self.connection.sql(
                 f"""
                 SELECT
@@ -2513,6 +2544,7 @@ class PbfFileReader:
                 FROM ({relation_outer_parts_parquet.sql_query()}) og
                 JOIN ({relation_inner_parts_parquet.sql_query()}) ig
                 ON og.id = ig.id AND ST_WITHIN(ig.geometry, og.geometry)
+                WHERE og.all_closed = true
                 GROUP BY og.id, og.geometry_id
                 """
             )
@@ -2542,6 +2574,7 @@ class PbfFileReader:
             FROM ({relation_outer_parts_parquet.sql_query()}) og
             ANTI JOIN ({relation_outer_parts_with_holes_parquet.sql_query()}) ogwh
             ON og.id = ogwh.id AND og.geometry_id = ogwh.geometry_id
+            WHERE og.all_closed = true
             """
         )
         relation_outer_parts_without_holes_parquet = self._save_parquet_file_with_geometry(
@@ -2549,18 +2582,52 @@ class PbfFileReader:
             file_path=self.tmp_dir_path / "relation_outer_parts_without_holes",
             step_name="Saving relations outer parts without holes",
         )
+        # Get non-closed relation parts (both outer and inner, no hole processing) if enabled
+        if self.include_non_closed_relations:
+            non_closed_parts = self.connection.sql(
+                f"""
+                SELECT id, geometry_id, geometry
+                FROM ({relation_outer_parts_parquet.sql_query()})
+                WHERE all_closed = false
+                UNION ALL
+                SELECT id, geometry_id, geometry
+                FROM ({relation_inner_parts_parquet.sql_query()})
+                WHERE id IN (
+                    SELECT DISTINCT id
+                    FROM ({relation_outer_parts_parquet.sql_query()})
+                    WHERE all_closed = false
+                )
+                """
+            )
+            non_closed_parts_parquet = self._save_parquet_file_with_geometry(
+                relation=non_closed_parts,
+                file_path=self.tmp_dir_path / "relation_non_closed_parts",
+                step_name="Saving relations non-closed parts",
+            )
+            non_closed_union = f"""
+                UNION ALL
+                -- Non-closed relations: all parts (no hole processing)
+                SELECT id, geometry
+                FROM ({non_closed_parts_parquet.sql_query()})
+            """
+        else:
+            non_closed_union = ""
+
         relations_with_geometry = self.connection.sql(
             f"""
-            WITH unioned_outer_geometries AS (
+            WITH all_relation_parts AS (
+                -- Closed relations: outer parts with holes
                 SELECT id, geometry
                 FROM ({relation_outer_parts_with_holes_parquet.sql_query()})
                 UNION ALL
+                -- Closed relations: outer parts without holes
                 SELECT id, geometry
                 FROM ({relation_outer_parts_without_holes_parquet.sql_query()})
+                {non_closed_union}
             ),
             final_geometries AS (
                 SELECT id, ST_Union_Agg(geometry) geometry
-                FROM unioned_outer_geometries
+                FROM all_relation_parts
                 GROUP BY id
             )
             SELECT 'relation/' || r_g.id as feature_id, r.tags, r_g.geometry
@@ -2626,21 +2693,28 @@ class PbfFileReader:
                     JOIN any_outer_refs aor ON aor.id = x.id
                     WHERE ST_NPoints(ST_RemoveRepeatedPoints(geom)) >= 4
                 ),
+                classified_relations AS (
+                    SELECT
+                        id,
+                        bool_and(
+                            ST_Equals(ST_StartPoint(geometry), ST_EndPoint(geometry))
+                        ) AS all_closed
+                    FROM relations_with_geometries
+                    GROUP BY id
+                ),
                 valid_relations AS (
-                    SELECT id, is_valid
-                    FROM (
-                        SELECT
-                            id,
-                            bool_and(
-                                ST_Equals(ST_StartPoint(geometry), ST_EndPoint(geometry))
-                            ) is_valid
-                        FROM relations_with_geometries
-                        GROUP BY id
-                    )
-                    WHERE is_valid = true
+                    SELECT id, all_closed
+                    FROM classified_relations
+                    WHERE {"all_closed = true" if not self.include_non_closed_relations else "1=1"}
                 )
-                SELECT * FROM relations_with_geometries
-                SEMI JOIN valid_relations ON relations_with_geometries.id = valid_relations.id
+                SELECT
+                    rwg.id,
+                    rwg.ref_role,
+                    rwg.geometry,
+                    rwg.geometry_id,
+                    vr.all_closed
+                FROM relations_with_geometries rwg
+                JOIN valid_relations vr ON rwg.id = vr.id
                 """
             )
             valid_relation_parts_parquet = self._save_parquet_file_with_geometry(
@@ -2727,17 +2801,18 @@ class PbfFileReader:
             ):
                 valid_relations = self.connection.sql(
                     f"""
-                    SELECT id, is_valid
-                    FROM (
+                    WITH classified_relations AS (
                         SELECT
                             id,
                             bool_and(
                                 ST_Equals(ST_StartPoint(geometry), ST_EndPoint(geometry))
-                            ) is_valid
+                            ) AS all_closed
                         FROM ({merged_linestrings_parquet.sql_query()})
                         GROUP BY id
                     )
-                    WHERE is_valid = true
+                    SELECT id, all_closed
+                    FROM classified_relations
+                    WHERE {"all_closed = true" if not self.include_non_closed_relations else "1=1"}
                     """
                 )
 
@@ -2755,8 +2830,14 @@ class PbfFileReader:
                 valid_relations AS (
                     SELECT * FROM ({valid_relations_parquet.sql_query()})
                 )
-                SELECT * FROM relations_with_geometries
-                SEMI JOIN valid_relations ON relations_with_geometries.id = valid_relations.id
+                SELECT
+                    rwg.id,
+                    rwg.ref_role,
+                    rwg.geometry,
+                    rwg.geometry_id,
+                    vr.all_closed
+                FROM relations_with_geometries rwg
+                JOIN valid_relations vr ON rwg.id = vr.id
                 """
             )
             valid_relation_parts_parquet = self._save_parquet_file_with_geometry(
