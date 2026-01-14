@@ -69,8 +69,56 @@ relation_type_filter = (
 **Real-World Test Case:**
 - **Relation:** Europa-Universität Viadrina (https://www.openstreetmap.org/relation/13128906)
 - **Type:** `type=site` (not boundary/multipolygon)
-- **Members:** 5 ways representing university campus buildings
-- **Result:** Now correctly included when `include_non_closed_relations=True` ✅
+- **Members:** 7 total (5 ways + 1 sub-relation + 1 node)
+- **Result:** Relation is now included, but with **known limitation** (see below) ✅
+
+## Known Limitation: Nested Relations Not Supported
+
+**Discovery Date:** 2026-01-14 (after initial implementation)
+
+**Issue:** QuackOSM currently only processes **way members** of relations, ignoring sub-relation members. This causes incomplete geometry reconstruction for complex relations that use nesting.
+
+**Technical Root Cause (pbf_file_reader.py:1706):**
+```python
+SELECT id, ref, ref_role, ref_idx
+FROM unnested_relation_refs
+WHERE ref_type = 'way'  ← Only processes ways, ignores ref_type = 'relation'
+```
+
+**Real-World Impact - University Example:**
+- **Parent Relation:** 13128906 (Europa-Universität Viadrina, type=site)
+  - ✅ 5 way members → Correctly extracted (5 building polygons)
+  - ❌ 1 sub-relation member (13128905) → **Ignored completely**
+  - ⚠️ 1 node member → Ignored (expected - nodes are location markers, not geometries)
+- **Missing Sub-Relation:** 13128905 (Hauptgebäude/main building, type=multipolygon)
+  - 1 outer way + 2 inner ways (courtyards)
+  - This is the prominent circular neo-baroque building visible on the map
+
+**Affected Relation Types:**
+- **type=site**: Universities, hospitals, shopping malls with complex building structures
+- **type=route_master**: Collections of route relations (bus/tram systems)
+- **type=superroute**: Super-collections of route_master relations
+- **type=network**: Road/waterway networks with hierarchical organization
+
+**Current Behavior:**
+- Relations with **only way members** → ✅ Work correctly
+- Relations with **sub-relation members** → ⚠️ Incomplete geometry (only direct way members extracted)
+
+**Workaround:**
+- For complete geometry extraction, OSM data would need to be "flattened" by adding sub-relation ways directly as parent relation members
+- This is an OSM data structure change, not a QuackOSM code change
+
+**Future Enhancement:**
+Supporting nested relations would require:
+1. Recursive resolution (process sub-relations before parent relations)
+2. Geometry assembly (combine way geometries + sub-relation geometries)
+3. Cycle detection (prevent infinite loops in circular references)
+4. Proper depth handling (handle multi-level nesting)
+5. Memory management (large hierarchies)
+
+**Estimated complexity:** Multiple days of development + comprehensive testing
+
+**Decision:** Document as known limitation for now (2026-01-14)
 
 **Code Changes Summary:**
 1. **Root Fix**: Made relation type filter conditional (lines 1657-1668)

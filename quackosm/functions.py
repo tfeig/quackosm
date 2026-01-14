@@ -134,7 +134,8 @@ def convert_pbf_to_duckdb(
         include_non_closed_relations (bool, optional): If True, includes all OSM relation types
             (site, route, network, etc.) and allows non-closed geometries. When False (default),
             only type='boundary' and type='multipolygon' relations with closed geometries are
-            included. Defaults to `False`.
+            included. Known limitation: Only direct way members are processed; relations with
+            sub-relation members will have incomplete geometries. Defaults to `False`.
 
     Returns:
         Path: Path to the generated DuckDB file.
@@ -416,7 +417,8 @@ def convert_geometry_to_duckdb(
         include_non_closed_relations (bool, optional): If True, includes all OSM relation types
             (site, route, network, etc.) and allows non-closed geometries. When False (default),
             only type='boundary' and type='multipolygon' relations with closed geometries are
-            included. Defaults to `False`.
+            included. Known limitation: Only direct way members are processed; relations with
+            sub-relation members will have incomplete geometries. Defaults to `False`.
 
     Returns:
         Path: Path to the generated DuckDB file.
@@ -646,7 +648,8 @@ def convert_osm_extract_to_duckdb(
         include_non_closed_relations (bool, optional): If True, includes all OSM relation types
             (site, route, network, etc.) and allows non-closed geometries. When False (default),
             only type='boundary' and type='multipolygon' relations with closed geometries are
-            included. Defaults to `False`.
+            included. Known limitation: Only direct way members are processed; relations with
+            sub-relation members will have incomplete geometries. Defaults to `False`.
 
     Returns:
         Path: Path to the generated DuckDB file.
@@ -836,7 +839,8 @@ def convert_pbf_to_parquet(
         include_non_closed_relations (bool, optional): If True, includes all OSM relation types
             (site, route, network, etc.) and allows non-closed geometries. When False (default),
             only type='boundary' and type='multipolygon' relations with closed geometries are
-            included. Defaults to `False`.
+            included. Known limitation: Only direct way members are processed; relations with
+            sub-relation members will have incomplete geometries. Defaults to `False`.
 
     Returns:
         Path: Path to the generated GeoParquet file.
@@ -1118,7 +1122,8 @@ def convert_geometry_to_parquet(
         include_non_closed_relations (bool, optional): If True, includes all OSM relation types
             (site, route, network, etc.) and allows non-closed geometries. When False (default),
             only type='boundary' and type='multipolygon' relations with closed geometries are
-            included. Defaults to `False`.
+            included. Known limitation: Only direct way members are processed; relations with
+            sub-relation members will have incomplete geometries. Defaults to `False`.
 
     Returns:
         Path: Path to the generated GeoParquet file.
@@ -1347,7 +1352,8 @@ def convert_osm_extract_to_parquet(
         include_non_closed_relations (bool, optional): If True, includes all OSM relation types
             (site, route, network, etc.) and allows non-closed geometries. When False (default),
             only type='boundary' and type='multipolygon' relations with closed geometries are
-            included. Defaults to `False`.
+            included. Known limitation: Only direct way members are processed; relations with
+            sub-relation members will have incomplete geometries. Defaults to `False`.
 
     Returns:
         Path: Path to the generated GeoParquet file.
@@ -1532,7 +1538,8 @@ def convert_pbf_to_geodataframe(
         include_non_closed_relations (bool, optional): If True, includes all OSM relation types
             (site, route, network, etc.) and allows non-closed geometries. When False (default),
             only type='boundary' and type='multipolygon' relations with closed geometries are
-            included. Defaults to `False`.
+            included. Known limitation: Only direct way members are processed; relations with
+            sub-relation members will have incomplete geometries. Defaults to `False`.
 
     Returns:
         gpd.GeoDataFrame: GeoDataFrame with OSM features.
@@ -1780,7 +1787,8 @@ def convert_geometry_to_geodataframe(
         include_non_closed_relations (bool, optional): If True, includes all OSM relation types
             (site, route, network, etc.) and allows non-closed geometries. When False (default),
             only type='boundary' and type='multipolygon' relations with closed geometries are
-            included. Defaults to `False`.
+            included. Known limitation: Only direct way members are processed; relations with
+            sub-relation members will have incomplete geometries. Defaults to `False`.
 
     Returns:
         gpd.GeoDataFrame: GeoDataFrame with OSM features.
@@ -1958,7 +1966,8 @@ def convert_osm_extract_to_geodataframe(
         include_non_closed_relations (bool, optional): If True, includes all OSM relation types
             (site, route, network, etc.) and allows non-closed geometries. When False (default),
             only type='boundary' and type='multipolygon' relations with closed geometries are
-            included. Defaults to `False`.
+            included. Known limitation: Only direct way members are processed; relations with
+            sub-relation members will have incomplete geometries. Defaults to `False`.
 
     Returns:
         gpd.GeoDataFrame: GeoDataFrame with OSM features.

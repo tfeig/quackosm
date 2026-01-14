@@ -246,6 +246,10 @@ class PbfFileReader:
                 - All open parts → LineString or MultiLineString
                 - Mixed closed/open parts → GeometryCollection
 
+                Known limitation: Only direct way members are processed. Relations with
+                sub-relation members (e.g., type=site with nested multipolygon buildings)
+                will have incomplete geometries - only the direct way members are extracted.
+
                 Defaults to `False` (maintains backward compatibility).
             debug_memory (bool, optional): If turned on, will keep all temporary files after
                 operation for debugging. Defaults to `False`.

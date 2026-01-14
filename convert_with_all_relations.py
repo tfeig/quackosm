@@ -5,6 +5,11 @@ This script converts an OSM PBF file to GeoParquet format with
 include_non_closed_relations=True, which includes all relation types
 (site, route, network, etc.) and allows non-closed geometries.
 
+Known Limitation: Only direct way members of relations are processed.
+Relations with sub-relation members (e.g., type=site with nested
+multipolygon buildings) will have incomplete geometries - only the
+direct way members are extracted.
+
 Usage:
     python convert_with_all_relations.py <pbf_file> [output_dir]
 
