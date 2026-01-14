@@ -230,14 +230,21 @@ class PbfFileReader:
                 aren't covered by any OSM extract. Defaults to `False`.
             ignore_metadata_tags (bool, optional): Remove metadata tags, based on the default GDAL
                 config. Defaults to `True`.
-            include_non_closed_relations (bool, optional): If True, includes OSM relations that
-                don't form closed multipolygons in the output. When False (default), only relations
-                where all parts form closed rings are included.
+            include_non_closed_relations (bool, optional): If True, includes all OSM relation types
+                and allows non-closed geometries in the output. When False (default), only relations
+                with type='boundary' or type='multipolygon' are processed, and only those where all
+                parts form closed rings are included.
+
+                When True, additional relation types are included:
+                - type='site' (universities, hospitals, shopping malls)
+                - type='route' (bus routes, hiking trails, bike paths)
+                - type='network' (road networks, waterway networks)
+                - type='route_master', type='superroute', and other types
 
                 Output geometry types:
-                - Closed relations → MultiPolygon (existing behavior)
-                - Non-closed relations → MultiLineString (when True)
-                - Mixed relations → GeometryCollection (when True)
+                - All closed parts → Polygon or MultiPolygon
+                - All open parts → LineString or MultiLineString
+                - Mixed closed/open parts → GeometryCollection
 
                 Defaults to `False` (maintains backward compatibility).
             debug_memory (bool, optional): If turned on, will keep all temporary files after
@@ -1651,16 +1658,21 @@ class PbfFileReader:
             # RELATIONS - VALID (RV)
             # - select all with kind = 'relation'
             # - select all with more then one ref
-            # - select all with type in ['boundary', 'multipolygon']
+            # - select all with type in ['boundary', 'multipolygon'] (or all types if include_non_closed_relations)
             # - join all WV to refs
             # - select all where all refs has been joined (total_refs == found_refs)
+            relation_type_filter = (
+                "AND list_has_any(map_extract(tags, 'type'), ['boundary', 'multipolygon'])"
+                if not self.include_non_closed_relations
+                else ""
+            )
             self.connection.sql(
                 f"""
                 SELECT *
                 FROM ({elements.sql_query()})
                 WHERE kind = 'relation' AND len(refs) > 0
                 AND list_contains(map_keys(tags), 'type')
-                AND list_has_any(map_extract(tags, 'type'), ['boundary', 'multipolygon'])
+                {relation_type_filter}
                 """
             ).to_view("relations", replace=True)
             relations_all_with_tags = self._sql_to_parquet_file(

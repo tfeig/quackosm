@@ -131,9 +131,10 @@ def convert_pbf_to_duckdb(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
-        include_non_closed_relations (bool, optional): If True, includes OSM relations that
-            don't form closed multipolygons in the output. When False (default), only relations
-            where all parts form closed rings are included. Defaults to `False`.
+        include_non_closed_relations (bool, optional): If True, includes all OSM relation types
+            (site, route, network, etc.) and allows non-closed geometries. When False (default),
+            only type='boundary' and type='multipolygon' relations with closed geometries are
+            included. Defaults to `False`.
 
     Returns:
         Path: Path to the generated DuckDB file.
@@ -412,9 +413,10 @@ def convert_geometry_to_duckdb(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
-        include_non_closed_relations (bool, optional): If True, includes OSM relations that
-            don't form closed multipolygons in the output. When False (default), only relations
-            where all parts form closed rings are included. Defaults to `False`.
+        include_non_closed_relations (bool, optional): If True, includes all OSM relation types
+            (site, route, network, etc.) and allows non-closed geometries. When False (default),
+            only type='boundary' and type='multipolygon' relations with closed geometries are
+            included. Defaults to `False`.
 
     Returns:
         Path: Path to the generated DuckDB file.
@@ -641,9 +643,10 @@ def convert_osm_extract_to_duckdb(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
-        include_non_closed_relations (bool, optional): If True, includes OSM relations that
-            don't form closed multipolygons in the output. When False (default), only relations
-            where all parts form closed rings are included. Defaults to `False`.
+        include_non_closed_relations (bool, optional): If True, includes all OSM relation types
+            (site, route, network, etc.) and allows non-closed geometries. When False (default),
+            only type='boundary' and type='multipolygon' relations with closed geometries are
+            included. Defaults to `False`.
 
     Returns:
         Path: Path to the generated DuckDB file.
@@ -830,9 +833,10 @@ def convert_pbf_to_parquet(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
-        include_non_closed_relations (bool, optional): If True, includes OSM relations that
-            don't form closed multipolygons in the output. When False (default), only relations
-            where all parts form closed rings are included. Defaults to `False`.
+        include_non_closed_relations (bool, optional): If True, includes all OSM relation types
+            (site, route, network, etc.) and allows non-closed geometries. When False (default),
+            only type='boundary' and type='multipolygon' relations with closed geometries are
+            included. Defaults to `False`.
 
     Returns:
         Path: Path to the generated GeoParquet file.
@@ -1111,9 +1115,10 @@ def convert_geometry_to_parquet(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
-        include_non_closed_relations (bool, optional): If True, includes OSM relations that
-            don't form closed multipolygons in the output. When False (default), only relations
-            where all parts form closed rings are included. Defaults to `False`.
+        include_non_closed_relations (bool, optional): If True, includes all OSM relation types
+            (site, route, network, etc.) and allows non-closed geometries. When False (default),
+            only type='boundary' and type='multipolygon' relations with closed geometries are
+            included. Defaults to `False`.
 
     Returns:
         Path: Path to the generated GeoParquet file.
@@ -1339,9 +1344,10 @@ def convert_osm_extract_to_parquet(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
-        include_non_closed_relations (bool, optional): If True, includes OSM relations that
-            don't form closed multipolygons in the output. When False (default), only relations
-            where all parts form closed rings are included. Defaults to `False`.
+        include_non_closed_relations (bool, optional): If True, includes all OSM relation types
+            (site, route, network, etc.) and allows non-closed geometries. When False (default),
+            only type='boundary' and type='multipolygon' relations with closed geometries are
+            included. Defaults to `False`.
 
     Returns:
         Path: Path to the generated GeoParquet file.
@@ -1523,9 +1529,10 @@ def convert_pbf_to_geodataframe(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
-        include_non_closed_relations (bool, optional): If True, includes OSM relations that
-            don't form closed multipolygons in the output. When False (default), only relations
-            where all parts form closed rings are included. Defaults to `False`.
+        include_non_closed_relations (bool, optional): If True, includes all OSM relation types
+            (site, route, network, etc.) and allows non-closed geometries. When False (default),
+            only type='boundary' and type='multipolygon' relations with closed geometries are
+            included. Defaults to `False`.
 
     Returns:
         gpd.GeoDataFrame: GeoDataFrame with OSM features.
@@ -1770,9 +1777,10 @@ def convert_geometry_to_geodataframe(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
-        include_non_closed_relations (bool, optional): If True, includes OSM relations that
-            don't form closed multipolygons in the output. When False (default), only relations
-            where all parts form closed rings are included. Defaults to `False`.
+        include_non_closed_relations (bool, optional): If True, includes all OSM relation types
+            (site, route, network, etc.) and allows non-closed geometries. When False (default),
+            only type='boundary' and type='multipolygon' relations with closed geometries are
+            included. Defaults to `False`.
 
     Returns:
         gpd.GeoDataFrame: GeoDataFrame with OSM features.
@@ -1947,9 +1955,10 @@ def convert_osm_extract_to_geodataframe(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
-        include_non_closed_relations (bool, optional): If True, includes OSM relations that
-            don't form closed multipolygons in the output. When False (default), only relations
-            where all parts form closed rings are included. Defaults to `False`.
+        include_non_closed_relations (bool, optional): If True, includes all OSM relation types
+            (site, route, network, etc.) and allows non-closed geometries. When False (default),
+            only type='boundary' and type='multipolygon' relations with closed geometries are
+            included. Defaults to `False`.
 
     Returns:
         gpd.GeoDataFrame: GeoDataFrame with OSM features.
