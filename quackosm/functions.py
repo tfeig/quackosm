@@ -60,6 +60,7 @@ def convert_pbf_to_duckdb(
     debug_memory: bool = False,
     debug_times: bool = False,
     cpu_limit: Optional[int] = None,
+    include_non_closed_relations: bool = False,
 ) -> Path:
     """
     Convert PBF file to DuckDB file.
@@ -130,6 +131,9 @@ def convert_pbf_to_duckdb(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
+        include_non_closed_relations (bool, optional): If True, includes OSM relations that
+            don't form closed multipolygons in the output. When False (default), only relations
+            where all parts form closed rings are included. Defaults to `False`.
 
     Returns:
         Path: Path to the generated DuckDB file.
@@ -287,6 +291,7 @@ def convert_pbf_to_duckdb(
         debug_memory=debug_memory,
         debug_times=debug_times,
         cpu_limit=cpu_limit,
+        include_non_closed_relations=include_non_closed_relations,
     ).convert_pbf_to_duckdb(
         pbf_path=pbf_path,
         result_file_path=result_file_path,
@@ -325,6 +330,7 @@ def convert_geometry_to_duckdb(
     debug_memory: bool = False,
     debug_times: bool = False,
     cpu_limit: Optional[int] = None,
+    include_non_closed_relations: bool = False,
 ) -> Path:
     """
     Get a DuckDB file with OpenStreetMap features within given geometry.
@@ -406,6 +412,9 @@ def convert_geometry_to_duckdb(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
+        include_non_closed_relations (bool, optional): If True, includes OSM relations that
+            don't form closed multipolygons in the output. When False (default), only relations
+            where all parts form closed rings are included. Defaults to `False`.
 
     Returns:
         Path: Path to the generated DuckDB file.
@@ -521,6 +530,7 @@ def convert_geometry_to_duckdb(
         debug_memory=debug_memory,
         debug_times=debug_times,
         cpu_limit=cpu_limit,
+        include_non_closed_relations=include_non_closed_relations,
     ).convert_geometry_to_duckdb(
         result_file_path=result_file_path,
         keep_all_tags=keep_all_tags,
@@ -557,6 +567,7 @@ def convert_osm_extract_to_duckdb(
     debug_memory: bool = False,
     debug_times: bool = False,
     cpu_limit: Optional[int] = None,
+    include_non_closed_relations: bool = False,
 ) -> Path:
     """
     Get a single OpenStreetMap extract from a given source and transform it to a DuckDB file.
@@ -630,6 +641,9 @@ def convert_osm_extract_to_duckdb(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
+        include_non_closed_relations (bool, optional): If True, includes OSM relations that
+            don't form closed multipolygons in the output. When False (default), only relations
+            where all parts form closed rings are included. Defaults to `False`.
 
     Returns:
         Path: Path to the generated DuckDB file.
@@ -706,6 +720,7 @@ def convert_osm_extract_to_duckdb(
         debug_memory=debug_memory,
         debug_times=debug_times,
         cpu_limit=cpu_limit,
+        include_non_closed_relations=include_non_closed_relations,
     ).convert_pbf_to_duckdb(
         pbf_path=downloaded_osm_extract,
         result_file_path=result_file_path,
@@ -742,6 +757,7 @@ def convert_pbf_to_parquet(
     debug_memory: bool = False,
     debug_times: bool = False,
     cpu_limit: Optional[int] = None,
+    include_non_closed_relations: bool = False,
 ) -> Path:
     """
     Convert PBF file to GeoParquet file.
@@ -814,6 +830,9 @@ def convert_pbf_to_parquet(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
+        include_non_closed_relations (bool, optional): If True, includes OSM relations that
+            don't form closed multipolygons in the output. When False (default), only relations
+            where all parts form closed rings are included. Defaults to `False`.
 
     Returns:
         Path: Path to the generated GeoParquet file.
@@ -969,6 +988,7 @@ def convert_pbf_to_parquet(
         debug_memory=debug_memory,
         debug_times=debug_times,
         cpu_limit=cpu_limit,
+        include_non_closed_relations=include_non_closed_relations,
     ).convert_pbf_to_parquet(
         pbf_path=pbf_path,
         result_file_path=result_file_path,
@@ -1007,6 +1027,7 @@ def convert_geometry_to_parquet(
     debug_memory: bool = False,
     debug_times: bool = False,
     cpu_limit: Optional[int] = None,
+    include_non_closed_relations: bool = False,
 ) -> Path:
     """
     Get a GeoParquet file with OpenStreetMap features within given geometry.
@@ -1090,6 +1111,9 @@ def convert_geometry_to_parquet(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
+        include_non_closed_relations (bool, optional): If True, includes OSM relations that
+            don't form closed multipolygons in the output. When False (default), only relations
+            where all parts form closed rings are included. Defaults to `False`.
 
     Returns:
         Path: Path to the generated GeoParquet file.
@@ -1202,6 +1226,7 @@ def convert_geometry_to_parquet(
         debug_memory=debug_memory,
         debug_times=debug_times,
         cpu_limit=cpu_limit,
+        include_non_closed_relations=include_non_closed_relations,
     ).convert_geometry_to_parquet(
         result_file_path=result_file_path,
         keep_all_tags=keep_all_tags,
@@ -1238,6 +1263,7 @@ def convert_osm_extract_to_parquet(
     debug_memory: bool = False,
     debug_times: bool = False,
     cpu_limit: Optional[int] = None,
+    include_non_closed_relations: bool = False,
 ) -> Path:
     """
     Get a single OpenStreetMap extract from a given source and transform it to a GeoParquet file.
@@ -1313,6 +1339,9 @@ def convert_osm_extract_to_parquet(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
+        include_non_closed_relations (bool, optional): If True, includes OSM relations that
+            don't form closed multipolygons in the output. When False (default), only relations
+            where all parts form closed rings are included. Defaults to `False`.
 
     Returns:
         Path: Path to the generated GeoParquet file.
@@ -1388,6 +1417,7 @@ def convert_osm_extract_to_parquet(
         debug_memory=debug_memory,
         debug_times=debug_times,
         cpu_limit=cpu_limit,
+        include_non_closed_relations=include_non_closed_relations,
     ).convert_pbf_to_parquet(
         pbf_path=downloaded_osm_extract,
         result_file_path=result_file_path,
@@ -1423,6 +1453,7 @@ def convert_pbf_to_geodataframe(
     debug_memory: bool = False,
     debug_times: bool = False,
     cpu_limit: Optional[int] = None,
+    include_non_closed_relations: bool = False,
 ) -> gpd.GeoDataFrame:
     """
     Get features GeoDataFrame from a PBF file or list of PBF files.
@@ -1492,6 +1523,9 @@ def convert_pbf_to_geodataframe(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
+        include_non_closed_relations (bool, optional): If True, includes OSM relations that
+            don't form closed multipolygons in the output. When False (default), only relations
+            where all parts form closed rings are included. Defaults to `False`.
 
     Returns:
         gpd.GeoDataFrame: GeoDataFrame with OSM features.
@@ -1624,6 +1658,7 @@ def convert_pbf_to_geodataframe(
         debug_memory=debug_memory,
         debug_times=debug_times,
         cpu_limit=cpu_limit,
+        include_non_closed_relations=include_non_closed_relations,
     ).convert_pbf_to_geodataframe(
         pbf_path=pbf_path,
         keep_all_tags=keep_all_tags,
@@ -1657,6 +1692,7 @@ def convert_geometry_to_geodataframe(
     debug_memory: bool = False,
     debug_times: bool = False,
     cpu_limit: Optional[int] = None,
+    include_non_closed_relations: bool = False,
 ) -> gpd.GeoDataFrame:
     """
     Get features GeoDataFrame with OpenStreetMap features within given geometry.
@@ -1734,6 +1770,9 @@ def convert_geometry_to_geodataframe(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
+        include_non_closed_relations (bool, optional): If True, includes OSM relations that
+            don't form closed multipolygons in the output. When False (default), only relations
+            where all parts form closed rings are included. Defaults to `False`.
 
     Returns:
         gpd.GeoDataFrame: GeoDataFrame with OSM features.
@@ -1806,6 +1845,7 @@ def convert_geometry_to_geodataframe(
         debug_memory=debug_memory,
         debug_times=debug_times,
         cpu_limit=cpu_limit,
+        include_non_closed_relations=include_non_closed_relations,
     ).convert_geometry_to_geodataframe(
         keep_all_tags=keep_all_tags,
         explode_tags=explode_tags,
@@ -1837,6 +1877,7 @@ def convert_osm_extract_to_geodataframe(
     debug_memory: bool = False,
     debug_times: bool = False,
     cpu_limit: Optional[int] = None,
+    include_non_closed_relations: bool = False,
 ) -> gpd.GeoDataFrame:
     """
     Get a single OpenStreetMap extract from a given source and return it as a GeoDataFrame.
@@ -1906,6 +1947,9 @@ def convert_osm_extract_to_geodataframe(
             step has been executed. Defaults to `False`.
         cpu_limit (int, optional): Max number of threads available for processing.
             If `None`, will use all available threads. Defaults to `None`.
+        include_non_closed_relations (bool, optional): If True, includes OSM relations that
+            don't form closed multipolygons in the output. When False (default), only relations
+            where all parts form closed rings are included. Defaults to `False`.
 
     Returns:
         gpd.GeoDataFrame: GeoDataFrame with OSM features.
@@ -1974,6 +2018,7 @@ def convert_osm_extract_to_geodataframe(
         debug_memory=debug_memory,
         debug_times=debug_times,
         cpu_limit=cpu_limit,
+        include_non_closed_relations=include_non_closed_relations,
     ).convert_pbf_to_geodataframe(
         pbf_path=downloaded_osm_extract,
         keep_all_tags=keep_all_tags,
