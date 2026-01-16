@@ -3,13 +3,31 @@
 ## Quick Resume Guide (For New Sessions)
 
 **Status:** ✅ **IMPLEMENTATION COMPLETE** (2026-01-14)
+**Update:** ✅ **NODE-ONLY RELATIONS ADDED** (2026-01-16)
 
-**What Was Done:**
+**What Was Done (2026-01-14):**
 1. ✅ Identified root cause: Relation type filter excluding type=site and other non-multipolygon/boundary relations
 2. ✅ Fixed: Made relation type filter conditional based on `include_non_closed_relations` parameter
 3. ✅ Tested: Brandenburg PBF shows 17,380 additional relations (75% increase)
 4. ✅ Verified: University relation (type=site, ID 13128906) now correctly included
 5. ✅ Documentation: Updated all parameter docs in pbf_file_reader.py and functions.py
+
+**Node-Only Relations Enhancement (2026-01-16):**
+1. ✅ **New Parameter:** Added `include_node_only_relations: bool = False` to PbfFileReader
+2. ✅ **Root Cause Fixed:** Relations with only node members (no ways) were completely filtered out at validation stage
+3. ✅ **Solution:** Validate node-only relations against all nodes (not filtered nodes), similar to how way nodes are handled
+4. ✅ **Geometry Type:** Node-only relations output as Point (single node) or MultiPoint (multiple nodes)
+5. ✅ **Tested:** Relation 3603763 (Friedrich-Schiller-Universität Jena, 57 nodes) now included as MultiPoint
+6. ✅ **Cache Naming:** Adds `_nodeonlyrelas` suffix when enabled
+7. ✅ **All 9 Functions Updated:** Parameter added to all convenience functions in functions.py
+8. ✅ **Script Updated:** convert_with_all_relations.py now uses both parameters
+
+**Example Use Case - Relation 3603763:**
+- **Name:** Friedrich-Schiller-Universität Jena
+- **Type:** type=site (university campus)
+- **Members:** 57 nodes + 1 sub-relation, **0 ways**
+- **Previous Behavior:** Completely excluded (no way members to validate)
+- **New Behavior:** Included as MultiPoint with 57 points when `include_node_only_relations=True`
 
 **What's Next:**
 1. **User commits changes** (ready for commit)

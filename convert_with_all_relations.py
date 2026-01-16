@@ -1,14 +1,19 @@
 """
 Convert OSM PBF file to GeoParquet including all relation types.
 
-This script converts an OSM PBF file to GeoParquet format with
-include_non_closed_relations=True, which includes all relation types
-(site, route, network, etc.) and allows non-closed geometries.
+This script converts an OSM PBF file to GeoParquet format with:
+- include_non_closed_relations=True: Includes all relation types
+  (site, route, network, etc.) and allows non-closed geometries
+- include_node_only_relations=True: Includes relations that have
+  only node members (no ways) as Point/MultiPoint geometries
 
-Known Limitation: Only direct way members of relations are processed.
-Relations with sub-relation members (e.g., type=site with nested
-multipolygon buildings) will have incomplete geometries - only the
-direct way members are extracted.
+Known Limitations:
+1. Only direct way members of relations are processed. Relations with
+   sub-relation members (e.g., type=site with nested multipolygon
+   buildings) will have incomplete geometries - only the direct way
+   members are extracted.
+2. Node-only relations are represented as Point (single node) or
+   MultiPoint (multiple nodes) geometries.
 
 Usage:
     python convert_with_all_relations.py <pbf_file> [output_dir]
@@ -45,7 +50,7 @@ if __name__ == "__main__":
     print("=" * 80)
     print(f"Converting: {pbf_file}")
     print(f"Output directory: {output_dir}")
-    print(f"Mode: include_non_closed_relations=True")
+    print(f"Mode: include_non_closed_relations=True, include_node_only_relations=True")
     print("=" * 80)
     print()
 
@@ -53,6 +58,7 @@ if __name__ == "__main__":
         result = convert_pbf_to_parquet(
             pbf_file,
             include_non_closed_relations=True,
+            include_node_only_relations=True,
             working_directory=output_dir,
             verbosity_mode="verbose"
         )

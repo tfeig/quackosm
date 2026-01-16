@@ -130,6 +130,8 @@ class PbfFileReader:
         relations_all_with_tags: "duckdb.DuckDBPyRelation"
         relations_with_unnested_way_refs: "duckdb.DuckDBPyRelation"
         relations_filtered_ids: "duckdb.DuckDBPyRelation"
+        relations_with_unnested_node_refs: "duckdb.DuckDBPyRelation"
+        relations_node_only_filtered_ids: "duckdb.DuckDBPyRelation"
 
     if DUCKDB_ABOVE_130:
         ROWS_PER_GROUP_MEMORY_CONFIG = {
@@ -174,6 +176,7 @@ class PbfFileReader:
         allow_uncovered_geometry: bool = False,
         ignore_metadata_tags: bool = True,
         include_non_closed_relations: bool = False,
+        include_node_only_relations: bool = False,
         debug_memory: bool = False,
         debug_times: bool = False,
         cpu_limit: Optional[int] = None,
@@ -251,6 +254,23 @@ class PbfFileReader:
                 will have incomplete geometries - only the direct way members are extracted.
 
                 Defaults to `False` (maintains backward compatibility).
+            include_node_only_relations (bool, optional): If True, includes relations that have
+                only node members (no ways or sub-relations) in the output. These relations are
+                represented as Point or MultiPoint geometries.
+
+                Common use cases:
+                - type='site' relations with only location markers (e.g., distributed university
+                  campuses with individual building nodes)
+                - type='network' relations with junction nodes
+                - type='restriction' relations with node-based restrictions
+
+                Output geometry types:
+                - Single node → Point
+                - Multiple nodes → MultiPoint
+
+                When False (default), node-only relations are excluded from the output.
+
+                Defaults to `False` (maintains backward compatibility).
             debug_memory (bool, optional): If turned on, will keep all temporary files after
                 operation for debugging. Defaults to `False`.
             debug_times (bool, optional): If turned on, will report timestamps at which second each
@@ -279,6 +299,7 @@ class PbfFileReader:
         self.allow_uncovered_geometry = allow_uncovered_geometry
         self.ignore_metadata_tags = ignore_metadata_tags
         self.include_non_closed_relations = include_non_closed_relations
+        self.include_node_only_relations = include_node_only_relations
         self.osm_extract_source = osm_extract_source
         self.working_directory = Path(working_directory)
         self.working_directory.mkdir(parents=True, exist_ok=True)
@@ -1185,9 +1206,9 @@ class PbfFileReader:
         required_ways_with_linestrings = self._get_required_ways_with_linestrings(
             osm_parquet_files=converted_osm_parquet_files
         )
+        # Note: nodes_valid_with_tags is needed for node-only relations, so don't delete yet
         self._delete_directories(
             [
-                "nodes_valid_with_tags",
                 "ways_required_grouped",
                 "ways_required_ids",
                 "ways_with_unnested_nodes_refs",
@@ -1215,11 +1236,22 @@ class PbfFileReader:
         filtered_relations_with_geometry_path = self._get_filtered_relations_with_geometry(
             converted_osm_parquet_files, required_ways_with_linestrings
         )
+
+        # Process node-only relations (relations with only nodes) if enabled
+        if self.include_node_only_relations:
+            filtered_node_only_relations_with_geometry_path = (
+                self._get_filtered_node_only_relations_with_geometry(converted_osm_parquet_files)
+            )
+
+        # Now we can delete nodes_valid_with_tags after node-only relations are processed
         self._delete_directories(
             [
+                "nodes_valid_with_tags",
                 "relations_all_with_tags",
                 "relations_with_unnested_way_refs",
+                "relations_with_unnested_node_refs",
                 "relations_filtered_ids",
+                "relations_node_only_filtered_ids",
                 "required_ways_with_linestrings",
                 "valid_relation_parts",
                 "valid_relations_tmp",
@@ -1231,12 +1263,21 @@ class PbfFileReader:
             ],
         )
 
+        # Build parquet file list conditionally
+        parquet_files = [
+            f"'{filtered_nodes_with_geometry_path}/**/*.parquet'",
+            f"'{filtered_ways_with_proper_geometry_path}/**/*.parquet'",
+            f"'{filtered_relations_with_geometry_path}/**/*.parquet'",
+        ]
+        if self.include_node_only_relations:
+            parquet_files.append(
+                f"'{filtered_node_only_relations_with_geometry_path}/**/*.parquet'"
+            )
+
         parsed_geometries = self.connection.sql(
             f"""
             SELECT * FROM read_parquet([
-                '{filtered_nodes_with_geometry_path}/**/*.parquet',
-                '{filtered_ways_with_proper_geometry_path}/**/*.parquet',
-                '{filtered_relations_with_geometry_path}/**/*.parquet'
+                {', '.join(parquet_files)}
             ], union_by_name=True);
             """
         )
@@ -1293,11 +1334,12 @@ class PbfFileReader:
         sort_result_part = "_sorted" if sort_result else ""
         wkt_result_part = "_wkt" if save_as_wkt else ""
         non_closed_relations_part = "_nonclosedrelas" if self.include_non_closed_relations else ""
+        node_only_relations_part = "_nodeonlyrelas" if self.include_node_only_relations else ""
 
         result_file_name = (
             f"{pbf_file_name}_{osm_filter_tags_hash_part}_{clipping_geometry_hash_part}"
             f"_{exploded_tags_part}{filter_osm_ids_hash_part}{non_closed_relations_part}"
-            f"{sort_result_part}{wkt_result_part}.parquet"
+            f"{node_only_relations_part}{sort_result_part}{wkt_result_part}.parquet"
         )
 
         return Path(self.working_directory) / result_file_name
@@ -1336,11 +1378,12 @@ class PbfFileReader:
         sort_result_part = "_sorted" if sort_result else ""
         wkt_result_part = "_wkt" if save_as_wkt else ""
         non_closed_relations_part = "_nonclosedrelas" if self.include_non_closed_relations else ""
+        node_only_relations_part = "_nodeonlyrelas" if self.include_node_only_relations else ""
 
         result_file_name = (
             f"{clipping_geometry_hash_part}_{osm_filter_tags_hash_part}"
             f"_{exploded_tags_part}{filter_osm_ids_hash_part}{non_closed_relations_part}"
-            f"{sort_result_part}{wkt_result_part}.parquet"
+            f"{node_only_relations_part}{sort_result_part}{wkt_result_part}.parquet"
         )
 
         return Path(self.working_directory) / result_file_name
@@ -1712,7 +1755,55 @@ class PbfFileReader:
                 file_path=self.tmp_dir_path / "relations_with_unnested_way_refs",
             )
 
+        # Process node-only relations (relations with zero ways) if enabled
+        if self.include_node_only_relations:
+            with self.task_progress_tracker.get_spinner("Detecting node-only relations"):
+                # Find relations that have no way members
+                relations_with_node_refs = self._sql_to_parquet_file(
+                    sql_query="""
+                    WITH unnested_relation_refs AS (
+                        SELECT
+                            r.id,
+                            UNNEST(refs) as ref,
+                            UNNEST(ref_types) as ref_type,
+                            UNNEST(ref_roles) as ref_role
+                        FROM relations r
+                    ),
+                    relation_way_counts AS (
+                        SELECT id, COUNT(*) as way_count
+                        FROM unnested_relation_refs
+                        WHERE ref_type = 'way'
+                        GROUP BY id
+                    ),
+                    node_only_relations AS (
+                        SELECT DISTINCT r.id
+                        FROM relations r
+                        LEFT JOIN relation_way_counts rwc ON r.id = rwc.id
+                        WHERE rwc.way_count IS NULL OR rwc.way_count = 0
+                    )
+                    SELECT
+                        urr.id,
+                        urr.ref,
+                        urr.ref_role
+                    FROM unnested_relation_refs urr
+                    SEMI JOIN node_only_relations nor ON urr.id = nor.id
+                    WHERE urr.ref_type = 'node'
+                    """,
+                    file_path=self.tmp_dir_path / "relations_with_unnested_node_refs",
+                )
+        else:
+            # Create empty relation for compatibility
+            empty_node_refs = self.connection.sql(
+                "SELECT NULL::BIGINT as id, NULL::BIGINT as ref, NULL::VARCHAR as ref_role WHERE 1=0"
+            )
+            relations_with_node_refs = self._save_parquet_file(
+                relation=empty_node_refs,
+                file_path=self.tmp_dir_path / "relations_with_unnested_node_refs",
+                run_in_separate_process=False,
+            )
+
         with self.task_progress_tracker.get_spinner("Filtering relations - valid refs"):
+            # Validate way-based relations
             relations_valid_ids = self._sql_to_parquet_file(
                 sql_query=f"""
                 WITH total_relation_refs AS (
@@ -1731,6 +1822,37 @@ class PbfFileReader:
                 file_path=self.tmp_dir_path / "relations_valid_ids",
             )
 
+            # Validate node-only relations (if enabled)
+            # Note: We check against nodes_valid_with_tags (all nodes), not nodes_filtered_ids
+            # This is similar to how ways are validated - the nodes don't need to match the tag filter
+            if self.include_node_only_relations:
+                relations_node_only_valid_ids = self._sql_to_parquet_file(
+                    sql_query=f"""
+                    WITH total_node_relation_refs AS (
+                        SELECT id
+                        FROM ({relations_with_node_refs.sql_query()}) rnr
+                    ),
+                    unmatched_node_relation_refs AS (
+                        SELECT id
+                        FROM ({relations_with_node_refs.sql_query()}) r
+                        ANTI JOIN ({nodes_valid_with_tags.sql_query()}) nv ON nv.id = r.ref
+                    )
+                    SELECT DISTINCT id
+                    FROM total_node_relation_refs
+                    ANTI JOIN unmatched_node_relation_refs USING (id)
+                    """,
+                    file_path=self.tmp_dir_path / "relations_node_only_valid_ids",
+                )
+            else:
+                empty_valid_ids = self.connection.sql(
+                    "SELECT NULL::BIGINT as id WHERE 1=0"
+                )
+                relations_node_only_valid_ids = self._save_parquet_file(
+                    relation=empty_valid_ids,
+                    file_path=self.tmp_dir_path / "relations_node_only_valid_ids",
+                    run_in_separate_process=False,
+                )
+
         with self.task_progress_tracker.get_spinner("Filtering relations - intersection"):
             # RELATIONS - INTERSECTING (RI)
             # - select all from RW with joining any from RV on ref
@@ -1744,8 +1866,30 @@ class PbfFileReader:
                     """,
                     file_path=self.tmp_dir_path / "relations_intersecting_ids",
                 )
+
+                # Node-only relations intersecting (if enabled)
+                if self.include_node_only_relations:
+                    relations_node_only_intersecting_ids = self._sql_to_parquet_file(
+                        sql_query=f"""
+                        SELECT rnr.id
+                        FROM ({relations_with_node_refs.sql_query()}) rnr
+                        SEMI JOIN ({relations_node_only_valid_ids.sql_query()}) rnv ON rnr.id = rnv.id
+                        SEMI JOIN ({nodes_intersecting_ids.sql_query()}) ni ON ni.id = rnr.ref
+                        """,
+                        file_path=self.tmp_dir_path / "relations_node_only_intersecting_ids",
+                    )
+                else:
+                    empty_intersecting_ids = self.connection.sql(
+                        "SELECT NULL::BIGINT as id WHERE 1=0"
+                    )
+                    relations_node_only_intersecting_ids = self._save_parquet_file(
+                        relation=empty_intersecting_ids,
+                        file_path=self.tmp_dir_path / "relations_node_only_intersecting_ids",
+                        run_in_separate_process=False,
+                    )
             else:
                 relations_intersecting_ids = relations_valid_ids
+                relations_node_only_intersecting_ids = relations_node_only_valid_ids
 
         with self.task_progress_tracker.get_spinner("Filtering relations - tags"):
             # RELATIONS - FILTERED (RF)
@@ -1756,6 +1900,7 @@ class PbfFileReader:
 
             relations_ids_path = self.tmp_dir_path / "relations_ids"
             relations_ids_path.mkdir(parents=True, exist_ok=True)
+            # Way-based relations
             self._sql_to_parquet_file(
                 sql_query=f"""
                 SELECT id FROM ({relations_all_with_tags.sql_query()}) r
@@ -1766,11 +1911,37 @@ class PbfFileReader:
                 """,
                 file_path=relations_ids_path / "filtered",
             )
+            # Node-only relations (if enabled)
+            if self.include_node_only_relations:
+                self._sql_to_parquet_file(
+                    sql_query=f"""
+                    SELECT id FROM ({relations_all_with_tags.sql_query()}) r
+                    SEMI JOIN ({relations_node_only_intersecting_ids.sql_query()}) rni ON r.id = rni.id
+                    WHERE ({sql_filter})
+                    AND ({filter_osm_relation_ids_filter})
+                    AND ({custom_sql_filter})
+                    """,
+                    file_path=relations_ids_path / "filtered_node_only",
+                )
 
         with self.task_progress_tracker.get_spinner("Calculating distinct filtered relations ids"):
             relations_filtered_ids = self._calculate_unique_ids_to_parquet(
                 relations_ids_path / "filtered", self.tmp_dir_path / "relations_filtered_ids"
             )
+            if self.include_node_only_relations:
+                relations_node_only_filtered_ids = self._calculate_unique_ids_to_parquet(
+                    relations_ids_path / "filtered_node_only",
+                    self.tmp_dir_path / "relations_node_only_filtered_ids",
+                )
+            else:
+                empty_filtered_ids = self.connection.sql(
+                    "SELECT NULL::BIGINT as id WHERE 1=0"
+                )
+                relations_node_only_filtered_ids = self._save_parquet_file(
+                    relation=empty_filtered_ids,
+                    file_path=self.tmp_dir_path / "relations_node_only_filtered_ids",
+                    run_in_separate_process=False,
+                )
 
         ways_prepared_ids_path = self.tmp_dir_path / "ways_prepared_ids"
         ways_prepared_ids_path.mkdir(parents=True, exist_ok=True)
@@ -1803,6 +1974,8 @@ class PbfFileReader:
             relations_all_with_tags=relations_all_with_tags,
             relations_with_unnested_way_refs=relations_with_unnested_way_refs,
             relations_filtered_ids=relations_filtered_ids,
+            relations_with_unnested_node_refs=relations_with_node_refs,
+            relations_node_only_filtered_ids=relations_node_only_filtered_ids,
         )
 
     def _delete_directories(
@@ -2659,6 +2832,64 @@ class PbfFileReader:
             relation=relations_with_geometry,
             file_path=result_path,
             step_name="Saving filtered relations with geometries",
+        )
+        return result_path
+
+    def _get_filtered_node_only_relations_with_geometry(
+        self,
+        osm_parquet_files: ConvertedOSMParquetFiles,
+    ) -> Path:
+        """
+        Construct MultiPoint geometries for node-only relations.
+
+        Args:
+            osm_parquet_files: Converted OSM parquet files with node-only relation references.
+
+        Returns:
+            Path to parquet file with node-only relation geometries.
+        """
+        # Get node geometries for node-only relations
+        node_only_relations_with_geometry = self.connection.sql(
+            f"""
+            WITH relation_node_refs AS (
+                SELECT
+                    r.id as relation_id,
+                    r.ref as node_id
+                FROM ({osm_parquet_files.relations_with_unnested_node_refs.sql_query()}) r
+                SEMI JOIN ({osm_parquet_files.relations_node_only_filtered_ids.sql_query()}) fr
+                ON r.id = fr.id
+            ),
+            relation_nodes_with_geom AS (
+                SELECT
+                    rnr.relation_id,
+                    ST_Point(round(n.lon, 7), round(n.lat, 7)) as geometry
+                FROM relation_node_refs rnr
+                JOIN ({osm_parquet_files.nodes_valid_with_tags.sql_query()}) n
+                ON n.id = rnr.node_id
+            ),
+            relation_multipoint_geometries AS (
+                SELECT
+                    relation_id as id,
+                    ST_Union_Agg(geometry) as geometry
+                FROM relation_nodes_with_geom
+                GROUP BY relation_id
+            )
+            SELECT
+                'relation/' || rmg.id as feature_id,
+                r.tags,
+                rmg.geometry
+            FROM relation_multipoint_geometries rmg
+            JOIN ({osm_parquet_files.relations_all_with_tags.sql_query()}) r
+            ON r.id = rmg.id
+            WHERE NOT ST_IsEmpty(rmg.geometry)
+            """
+        )
+
+        result_path = self.tmp_dir_path / "filtered_node_only_relations_with_geometry"
+        self._save_parquet_file_with_geometry(
+            relation=node_only_relations_with_geometry,
+            file_path=result_path,
+            step_name="Saving filtered node-only relations with geometries",
         )
         return result_path
 
