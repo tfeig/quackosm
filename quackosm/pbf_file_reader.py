@@ -1724,13 +1724,39 @@ class PbfFileReader:
             ).to_view("relations", replace=True)
             relations_all_with_tags = self._sql_to_parquet_file(
                 sql_query=f"""
-                WITH filtered_tags AS (
+                WITH unnested_relation_refs AS (
+                    SELECT
+                        r.id,
+                        UNNEST(refs) as ref,
+                        UNNEST(ref_types) as ref_type
+                    FROM relations r
+                ),
+                sub_relation_ids AS (
+                    SELECT
+                        id,
+                        STRING_AGG(CAST(ref AS VARCHAR), ',') as sub_rel_ids
+                    FROM unnested_relation_refs
+                    WHERE ref_type = 'relation'
+                    GROUP BY id
+                ),
+                filtered_tags AS (
                     SELECT id, {filtered_tags_clause}
                     FROM relations r
                     WHERE tags IS NOT NULL AND cardinality(tags) > 0
+                ),
+                tags_with_sub_relations AS (
+                    SELECT
+                        ft.id,
+                        CASE
+                            WHEN sri.sub_rel_ids IS NOT NULL
+                            THEN map_concat(ft.tags, map(['quackosm:nested_relation_ids'], [sri.sub_rel_ids]))
+                            ELSE ft.tags
+                        END as tags
+                    FROM filtered_tags ft
+                    LEFT JOIN sub_relation_ids sri ON ft.id = sri.id
                 )
                 SELECT id, tags
-                FROM filtered_tags
+                FROM tags_with_sub_relations
                 WHERE tags IS NOT NULL AND cardinality(tags) > 0
                 """,
                 file_path=self.tmp_dir_path / "relations_all_with_tags",
