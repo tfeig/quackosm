@@ -29,6 +29,7 @@ An open-source tool for reading OpenStreetMap PBF files using DuckDB.
 - Utilizes multithreading unlike GDAL that works in a single thread only.
 - Can filter data based on geometry without the need for `ogr2ogr` clipping before operation.
 - Can filter data based on OSM tags (with negations and wildcards).
+- Can extract all relation types (e.g., routes, networks, universities) with configurable geometry handling.
 - Can automatically download required PBF files for a given geometry.
 - Utilizes caching to reduce repeatable computations.
 - Can be used as Python module as well as a beautiful CLI based on `Typer`[^4].
@@ -627,6 +628,37 @@ monaco_osm.duckdb
 ```
 </details>
 
+### Include additional relation types 🔀
+
+By default, QuackOSM only extracts boundary and multipolygon relations. You can optionally include other relation types (routes, networks, sites, etc.) and node-only relations.
+
+#### Include all relation types
+
+```python
+>>> import quackosm as qosm
+>>> qosm.convert_pbf_to_geodataframe(
+...     "city.osm.pbf",
+...     include_non_closed_relations=True,
+... )
+# Output includes routes (bus, train), networks, turn restrictions, etc.
+# Geometries: Polygon, MultiPolygon, LineString, MultiLineString, GeometryCollection
+```
+
+#### Include node-only relations
+
+```python
+>>> import quackosm as qosm
+>>> qosm.convert_pbf_to_geodataframe(
+...     "city.osm.pbf",
+...     include_non_closed_relations=True,
+...     include_node_only_relations=True,
+... )
+# Output includes relations with only node members (e.g., universities with location markers)
+# Additional geometries: Point, MultiPoint
+```
+
+> **Note**: Relations with nested sub-relations will have a synthetic tag `quackosm:nested_relation_ids` containing comma-separated IDs of nested relations. See the [development documentation](docs/development/relation-extraction-improvements.md) for details.
+
 ---
 
 You can find full API + more examples in the [docs](https://kraina-ai.github.io/quackosm/).
@@ -697,8 +729,14 @@ When filtering by selecting individual features IDs, an additional hash based on
 When the `keep_all_tags` parameter is passed while filtering by OSM tags, and additional `alltags` component is added after the osm filter hash part.
 `example_a9dd1c3c2e3d6a94354464e9a1a536ef44cca77eebbd882f48ca52799eb4ca91_alltags_noclip_compact.parquet`
 
+When the `include_non_closed_relations` parameter is set to True, an additional `_nonclosedrelas` component is added.
+`example_nofilter_noclip_compact_nonclosedrelas.parquet`
+
+When the `include_node_only_relations` parameter is set to True, an additional `_nodeonlyrelas` component is added.
+`example_nofilter_noclip_compact_nonclosedrelas_nodeonlyrelas.parquet`
+
 General schema of multiple segments that are concatenated together:
-`pbf_file_name`\_(`osm_filter_tags_hash_part`/`nofilter`)(\_`alltags`)\_(`clipping_geometry_hash_part`/`noclip`)\_(`compact`/`exploded`)(\_`filter_osm_ids_hash_part`).parquet
+`pbf_file_name`\_(`osm_filter_tags_hash_part`/`nofilter`)(\_`alltags`)\_(`clipping_geometry_hash_part`/`noclip`)\_(`compact`/`exploded`)(\_`filter_osm_ids_hash_part`)(\_`nonclosedrelas`)(\_`nodeonlyrelas`).parquet
 
 > If the WKT mode is turned on, then the result file will be saved with a `_wkt` suffix.
 
